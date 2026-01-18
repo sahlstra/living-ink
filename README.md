@@ -43,4 +43,4 @@ Living Ink is an automated pipeline that bridges the gap between your reMarkable
 
 ## Acknowledgements
 
-Built on top of the excellent work of the generic [remarkable-mcp](https://github.com/skylock/remarkable-mcp) project.
+Built on top of the excellent work of the generic [remarkable-mcp](https://github.com/SamMorrowDrums/remarkable-mcp) project.
