@@ -1,0 +1,37 @@
+# Living Ink Configuration
+
+# 1. OpenAI Configuration (Required for text cleanup)
+openai:
+  api_key: "sk-proj-YOUR-OPENAI-KEY-HERE"
+
+# 2. reMarkable Configuration (Required for downloading notes)
+# Get your token by running the registration command or checking ~/.rmapi
+remarkable:
+  device_token: "YOUR-DEVICE-TOKEN-HERE"
+
+# 3. Google Cloud Vision Configuration (Required for OCR)
+google_vision:
+  # Option A: Path to your Service Account JSON file (Recommended)
+  # Example: "/Users/alice/Documents/my-google-creds.json"
+  credentials_path: ""
+
+  # Option B: Paste the full JSON content (Advanced)
+  # Only use this if you want the credentials inside this file.
+  # Ensure indentation is correct (4 spaces).
+  # credentials_json: |
+  #   {
+  #     "type": "service_account",
+  #     ...
+  #   }
+
+# 4. Sync Configuration (Optional)
+sync:
+  # How many notebooks to process in a single run (useful for rate limits)
+  # Default: 1
+  max_notebooks_per_run: 5
+
+# 5. Apple Notes Configuration (Optional)
+apple_notes:
+  # The folder in Apple Notes where new notes will be created.
+  # Default: "Living Ink"
+  folder_name: "Living Ink"
