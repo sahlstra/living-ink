@@ -10,6 +10,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter, ImageOps
 
+
 # --- LOGGING SUPPRESSION ---
 # Suppress specific benign warnings from rmscene/rmc that scare users
 class WarningFilter(logging.Filter):
@@ -60,8 +61,8 @@ if YAML_CONFIG_PATH.exists():
             try:
                 yaml_config = yaml.safe_load(f) or {}
             except yaml.YAMLError as ye:
-                print(f"\n❌ CONFIGURATION ERROR: Could not parse config.yml")
-                print(f"Please check your indentation. YAML is very sensitive to spaces.")
+                print("\n❌ CONFIGURATION ERROR: Could not parse config.yml")
+                print("Please check your indentation. YAML is very sensitive to spaces.")
                 if hasattr(ye, 'problem_mark'):
                     mark = ye.problem_mark
                     print(f"Error position: line {mark.line + 1}, column {mark.column + 1}")
@@ -71,7 +72,7 @@ if YAML_CONFIG_PATH.exists():
             # 1. OpenAI
             if 'openai' in yaml_config and 'api_key' in yaml_config['openai']:
                 os.environ['OPENAI_API_KEY'] = str(yaml_config['openai']['api_key']).strip()
-            
+
             # 2. reMarkable
             if 'remarkable' in yaml_config and 'device_token' in yaml_config['remarkable']:
                 os.environ['REMARKABLE_TOKEN'] = str(yaml_config['remarkable']['device_token']).strip()
@@ -79,31 +80,31 @@ if YAML_CONFIG_PATH.exists():
             # 3. Google Vision (Handle JSON content directly or file path)
             if 'google_vision' in yaml_config:
                 gv = yaml_config['google_vision']
-                
+
                 # Option A: Path to JSON file (Preferred for humans)
                 if 'credentials_path' in gv and gv['credentials_path']:
                     path_str = str(gv['credentials_path']).strip()
                     # Handle typical user paths like ~/Documents
                     expanded_path = os.path.expanduser(path_str)
-                    
+
                     if os.path.exists(expanded_path):
                          os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = expanded_path
                     else:
                          print(f"❌ Config Error: credentials_path file not found at: {path_str}")
-                
+
                 # Option B: Embedded JSON content
                 elif 'credentials_json' in gv:
                     creds_content = gv['credentials_json']
-                    
+
                     # Validate if it looks like JSON
                     if isinstance(creds_content, str):
                         creds_content = creds_content.strip()
                         if not creds_content.startswith('{'):
                              print("⚠️ Warning: 'credentials_json' in config.yml does not start with '{'. Did you forget the indentation?")
-                    
+
                     if isinstance(creds_content, dict):
                          creds_content = json.dumps(creds_content)
-                    
+
                     # Write to config/google_creds.json
                     creds_path = YAML_CONFIG_PATH.parent / 'google_creds.json'
                     try:
@@ -112,7 +113,7 @@ if YAML_CONFIG_PATH.exists():
                         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(creds_path)
                     except Exception as weave_err:
                         print(f"❌ Error writing google_creds.json: {weave_err}")
-            
+
             # 4. Sync Settings (Global vars that will be picked up later)
             if 'sync' in yaml_config:
                  if 'max_notebooks_per_run' in yaml_config['sync']:
@@ -311,7 +312,7 @@ def make_pdf_from_images(image_paths, out_pdf: Path):
 def create_apple_note_with_images(notebook_name: str, text_path: Path, image_paths: list[Path], folder_name: str = "reMarkable", sub_folder: str = None, retries: int = 3):
     import subprocess
     import time
-    
+
     # ... (existing text processing code) ...
     full_text = text_path.read_text(errors='ignore') if text_path.exists() else ''
 
@@ -341,7 +342,7 @@ def create_apple_note_with_images(notebook_name: str, text_path: Path, image_pat
 
     # Body is just the OCR text
     final_body = "<div><br></div>" + text_html
-    
+
     # Prepare attachment commands
     attachment_cmds = ""
     for img_p in image_paths:
@@ -384,7 +385,7 @@ def create_apple_note_with_images(notebook_name: str, text_path: Path, image_pat
                 safe_folder = json.dumps(folder_name, ensure_ascii=False)
                 safe_name = json.dumps(notebook_name, ensure_ascii=False)
                 safe_body = json.dumps(final_body, ensure_ascii=False)
-                
+
                 # Logic for Sub-Folder
                 if sub_folder:
                     safe_sub_folder = json.dumps(sub_folder, ensure_ascii=False)
@@ -481,7 +482,7 @@ def validate_environment():
     """Check configuration health and fail fast with helpful docs if missing."""
     docs_path = ROOT / 'docs' / 'SETUP_GUIDE.md'
     docs_hint = f"See {docs_path} for instructions."
-    
+
     errors = []
 
     # 1. Check OpenAI
@@ -495,7 +496,7 @@ def validate_environment():
     # The config loader above sets GOOGLE_APPLICATION_CREDENTIALS if a key exists in config.yml
     # Or users might have put a file in secrets/ (legacy)
     has_creds = False
-    
+
     # Check env var (set by config.yml loader or system)
     if os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'):
         # Check if it points to a file with default placeholder content
@@ -514,10 +515,10 @@ def validate_environment():
         secrets_dir = ROOT / 'secrets'
         if secrets_dir.exists() and list(secrets_dir.glob("*.json")):
              has_creds = True
-    
+
     if not has_creds:
          errors.append("❌ No Google Cloud credentials found. Please add 'credentials_json' to config.yml (see SETUP_GUIDE.md).")
-    
+
     if errors:
         msg = "\n".join(errors)
         log("\n" + "="*60)
@@ -527,7 +528,7 @@ def validate_environment():
         log("-" * 60)
         log(docs_hint)
         log("="*60 + "\n")
-        
+
         print("\n" + "="*60)
         print("CONFIGURATION ERROR")
         print("="*60)
@@ -535,10 +536,10 @@ def validate_environment():
         print("-" * 60)
         print(docs_hint)
         print("="*60 + "\n")
-        
+
         # We perform a hard exit here to prevent partial runs
         sys.exit(1)
-    
+
     log("Configuration valid.")
 
 
@@ -546,9 +547,9 @@ def main():
     # At the start of main(), clear the log for a new run
     with open(LOG_PATH, 'w', encoding='utf-8') as f:
         f.write('')
-    
+
     validate_environment()
-    
+
     log('Pipeline started.')
 
     # --- Argument parsing ---
@@ -628,8 +629,8 @@ def main():
 
     # Filter out notebooks that are in the trash
     candidates = [
-        item for item in collection 
-        if get_val(item, 'Type') == 'DocumentType' 
+        item for item in collection
+        if get_val(item, 'Type') == 'DocumentType'
         and (get_val(item, 'VissibleName') or get_val(item, 'VisibleName'))
         and not get_notebook_path(item, id_map).startswith("[TRASH]")
     ]
@@ -641,18 +642,18 @@ def main():
             notebooks.append(item)
         else:
             skipped_count += 1
-            
+
     if skipped_count > 0:
         log(f"Skipped {skipped_count} non-native documents (PDFs/EPUBs).")
 
     # Find already processed notebooks (from processed_notebooks.json)
     processed = load_processed_log()
-    
+
     # Find new or updated notebooks (tracking by ID and Hash/Version)
     new_notebooks = []
     for item in notebooks:
         doc_id = get_val(item, 'ID')
-        
+
         # Prefer 'hash', fall back to 'Version' (legacy), default to 1
         curr_val = get_val(item, 'hash')
         if not curr_val:
@@ -660,9 +661,9 @@ def main():
                  curr_val = int(get_val(item, 'Version'))
             except (ValueError, TypeError):
                  curr_val = 1
-        
+
         last_val = processed.get(doc_id, -1)
-        
+
         # Check for change:
         # 1. If we have a hash now, but stored a number (legacy), it's an update
         # 2. If strings differ (hash change or version mismatch), it's an update
@@ -686,17 +687,17 @@ def main():
              name = get_val(item, 'VissibleName') or get_val(item, 'VisibleName')
              if name == notebook:
                   notebooks_to_process.append(item)
-        
+
         if not notebooks_to_process:
             log(f'Notebook {notebook} not found or already processed. Exiting.')
             sys.exit(1)
     else:
         notebooks_to_process = new_notebooks
-        
+
     for nb_item in notebooks_to_process:
         notebook = get_val(nb_item, 'VissibleName') or get_val(nb_item, 'VisibleName')
         notebook_id = get_val(nb_item, 'ID')
-        
+
         # Get the value to store after processing (Hash or Version)
         item_hash = get_val(nb_item, 'hash')
         if item_hash:
@@ -706,7 +707,7 @@ def main():
                  notebook_version = int(get_val(nb_item, 'Version'))
             except:
                  notebook_version = 1
-             
+
         safe_notebook = sanitize_filename(notebook)
 
         # Determine Path and Display Title
@@ -784,14 +785,14 @@ def main():
             txt = vision_ocr_image_service_account(p)
             if txt is None:
                 log(f'Vision failed for {p}')
-            
+
             raw_text = txt or ''
             raw_texts.append(raw_text)
-            
+
             log(f'  Cleaning text with OpenAI for {p.name}...')
             cleaned_text = repair_text_with_openai(raw_text)
             cleaned_texts.append(cleaned_text)
-        
+
         # Save RAW text
         raw_out_txt = OCR_DIR / f'{safe_notebook}_raw.txt'
         meta = {'notebook': notebook, 'images': [p.name for p in imgs]}
@@ -810,12 +811,12 @@ def main():
                 f.write(f'--- Page {i} ---\n')
                 f.write((t or '').strip() + '\n\n')
         log(f'Cleaned OCR text saved to {clean_out_txt}')
-                                                           
+
         # Build PDF from the white PNGs - DISABLED for performance
         # out_pdf = PDF_DIR / f'{safe_notebook}.pdf'
         # make_pdf_from_images(imgs, out_pdf)
         # log(f'PDF created: {out_pdf}')
-        
+
         # Create Apple Note with text and inline images
         # We no longer rely on attaching the PDF, as it causes crashes or sandbox issues.
         # Instead, we embed the images directly into the HTML body.
@@ -830,8 +831,8 @@ def main():
                      top_level_subfolder = sanitize_filename(parts[0])
 
             # We use the list of PNGs 'imgs' we already have
-            success = create_apple_note_with_images(display_title, clean_out_txt, imgs, 
-                                                  folder_name=args.folder, 
+            success = create_apple_note_with_images(display_title, clean_out_txt, imgs,
+                                                  folder_name=args.folder,
                                                   sub_folder=top_level_subfolder)
         except Exception as e:
             log(f'Failed creating Apple Note: {e}')

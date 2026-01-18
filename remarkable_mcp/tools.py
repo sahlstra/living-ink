@@ -64,9 +64,9 @@ def _try_extract_typed_text_via_rmscene(document_zip_path: Path, page: int = 1) 
     This is intentionally defensive: rmscene APIs vary slightly across versions.
     """
     try:
+        import importlib
         import io
         import zipfile
-        import importlib
 
         ss = importlib.import_module("rmscene.scene_stream")
         st = importlib.import_module("rmscene.scene_tree")
