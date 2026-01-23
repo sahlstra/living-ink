@@ -486,32 +486,20 @@ def main():
     parser.add_argument("--state-file", help="Ignored (legacy compatibility)")
     args = parser.parse_args()
 
-    # --- Cleanup previous outputs for this notebook ---
+    # --- Cleanup previous outputs ONLY if --notebook is specified (forced run) ---
     import shutil
 
-    pre_dir = VISION_DIR / (args.notebook or "Notebook_8")
-    if pre_dir.exists():
-        shutil.rmtree(pre_dir)
-    out_txt = OCR_DIR / f"{args.notebook or 'Notebook_8'}.txt"
-    if out_txt.exists():
-        out_txt.unlink()
-    out_pdf = PDF_DIR / f"{args.notebook or 'Notebook_8'}.pdf"
-    if out_pdf.exists():
-        out_pdf.unlink()
+    if args.notebook:
+        pre_dir = VISION_DIR / (args.notebook)
+        if pre_dir.exists():
+            shutil.rmtree(pre_dir)
+        # Note: We don't delete text output here immediately, as we may want to reuse it if only destination changed
+
 
     # Ensure white PNG dir exists
     WHITE_DIR.mkdir(exist_ok=True)
 
-    # Clean all output folders at the start of each run
-    for folder in [WHITE_DIR, VISION_DIR, OCR_DIR, PDF_DIR]:
-        if folder.exists():
-            for item in folder.iterdir():
-                if item.is_file():
-                    item.unlink()
-                elif item.is_dir():
-                    shutil.rmtree(item)
-
-    # Step 0: List all notebooks in reMarkable cloud and find new ones
+    # --- Step 0: List all notebooks ---
     from remarkable_mcp.api import get_rmapi
 
     client = get_rmapi()
