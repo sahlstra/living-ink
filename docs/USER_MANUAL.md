@@ -3,7 +3,7 @@
 
 ## Overview
 
-**Living Ink** is an automated pipeline that bridges the gap between your reMarkable tablet and Apple Notes. It converts your handwritten notebooks into fully searchable, typed text in Apple Notes, While preserving the original handwriting references your "Living Signal".
+**Living Ink** is an automated pipeline that bridges the gap between your reMarkable tablet and your digital notes apps (Apple Notes or Obsidian). It converts your handwritten notebooks into fully searchable, typed text, While preserving the original handwriting references your "Living Signal".
 
 ## How It Works
 
@@ -14,21 +14,22 @@
 2.  **Download & Render**: It downloads the notebook pages and converts them into high-quality images.
 3.  **OCR (Optical Character Recognition)**: It sends these images to Google Cloud Vision to read your handwriting.
 4.  **AI Cleanup**: It uses OpenAI (GPT-4o) to fix spelling, formatting, and structure (converting bullet points, fixing broken sentences).
-5.  **Publish**: It creates (or overwrites) a note in Apple Notes containing:
-    *   The cleaned up, typed text.
-    *   The original handwritten page image (embedded).
+5.  **Publish**: It sends the result to your configured destinations:
+    *   **Apple Notes**: Creates a rich text note with embedded images.
+    *   **Obsidian**: Creates a Markdown file with YAML properties and local attachments.
 
 ## Folder Syncing
 
-The application now supports **Automatic Folder Nesting**. It mirrors your **top-level** folder structure from reMarkable into Apple Notes.
+The application now supports **Automatic Folder Nesting**. It mirrors your **top-level** folder structure from reMarkable into your destination.
 
 *   **reMarkable:** `/Finance/Budget 2026`
 *   **Apple Notes:** `Living Ink > Finance > Budget 2026`
+*   **Obsidian:** `Vault Root/Finance/Budget 2026.md`
 
-If a notebook is at the root level (not in any folder), it will appear directly in the main `Living Ink` folder.
+If a notebook is at the root level (not in any folder), it will appear directly in the main folder.
 
 **Note on Renaming:**
-If you rename a top-level folder on your reMarkable (e.g., from "Finance" to "Money"), the application will create a **new** folder called "Money" in Apple Notes and sync your notes there. The old "Finance" folder will remain (containing the old versions) and you can safely delete it manually.
+If you rename a top-level folder on your reMarkable (e.g., from "Finance" to "Money"), the application will create a **new** folder called "Money" in the destination and sync your notes there. The old "Finance" folder will remain (containing the old versions) and you can safely delete it manually.
 
 ## Usage
 
@@ -67,7 +68,18 @@ You can customize the behavior by editing `config/config.yml`:
 *   **Apple Notes Folder**: Change the destination folder name.
     ```yaml
     apple_notes:
+      enabled: true
       folder_name: "My Journal"
+    ```
+
+*   **Obsidian Vault**: Enable Obsidian sync and set your vault path.
+    ```yaml
+    obsidian:
+      enabled: true
+      # Absolute path to your Obsidian Vault root
+      vault_path: "/Users/username/Documents/MyVault"
+      # (Optional) Folder name for images, defaults to "attachments"
+      # attachments_folder: "attachments"
     ```
 
 ## Troubleshooting
@@ -75,7 +87,7 @@ You can customize the behavior by editing `config/config.yml`:
 ### "Configuration Error"
 If you see an error about missing keys or credentials, please refer to `SETUP_GUIDE.md`. The app cannot function without the OpenAI API key and Google Cloud Vision credentials.
 
-### Note Not Appearing?
+### Note Not Appearing? or Obsidian Vault
 1.  **Sync**: Ensure your reMarkable tablet has actually synced to the cloud. Check the reMarkable desktop or mobile app to confirm.
 2.  **Naming**: If you renamed a notebook recently, wait for the sync to propagate.
 3.  **Logs**: Check the log files (location varies by install, usually `logs/pipeline.log`) for specific error messages.

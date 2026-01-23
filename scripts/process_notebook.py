@@ -228,12 +228,18 @@ if CONFIG_PATH.exists():
         max_notebooks_per_run = getattr(config, "max_notebooks_per_run")
 
 
-def load_processed_log():
-    if PROCESSED_LOG.exists():
+def get_state_file_path(dest_name: str) -> Path:
+    """Get the path to the state file for a specific destination."""
+    return ROOT / f"processed_notebooks_{dest_name}.json"
+
+
+def load_processed_log(dest_name: str):
+    log_path = get_state_file_path(dest_name)
+    if log_path.exists():
         try:
-            with open(PROCESSED_LOG, "r") as f:
+            with open(log_path, "r") as f:
                 data = json.load(f)
-                # Handle legacy format (list of IDs)
+                # Handle legacy format (list of IDs) - backward compatibility
                 if isinstance(data, list):
                     return {doc_id: 0 for doc_id in data}
                 # Handle new format (dict of ID -> Version)
@@ -243,10 +249,11 @@ def load_processed_log():
     return {}
 
 
-def add_to_processed_log(doc_id, version):
-    processed = load_processed_log()
+def add_to_processed_log(dest_name: str, doc_id, version):
+    processed = load_processed_log(dest_name)
     processed[doc_id] = version
-    with open(PROCESSED_LOG, "w") as f:
+    log_path = get_state_file_path(dest_name)
+    with open(log_path, "w") as f:
         json.dump(processed, f, indent=2, sort_keys=True)
 
 
@@ -486,18 +493,19 @@ def main():
     parser.add_argument("--state-file", help="Ignored (legacy compatibility)")
     args = parser.parse_args()
 
-    # --- Cleanup previous outputs ONLY if --notebook is specified (forced run) ---
+    # --- Cleanup all cached files for all notebooks at the start of each run ---
     import shutil
-
-    if args.notebook:
-        pre_dir = VISION_DIR / (args.notebook)
-        if pre_dir.exists():
-            shutil.rmtree(pre_dir)
-        # Note: We don't delete text output here immediately, as we may want to reuse it if only destination changed
-
-
-    # Ensure white PNG dir exists
-    WHITE_DIR.mkdir(exist_ok=True)
+    # Clean all output folders (PNG, OCR, PDF, Vision) at the start of each run
+    for folder in [WHITE_DIR, VISION_DIR, OCR_DIR, PDF_DIR]:
+        if folder.exists():
+            for item in folder.iterdir():
+                if item.is_file():
+                    item.unlink()
+                elif item.is_dir():
+                    shutil.rmtree(item)
+    # Ensure output folders exist after cleanup
+    for folder in [WHITE_DIR, VISION_DIR, OCR_DIR, PDF_DIR]:
+        folder.mkdir(exist_ok=True)
 
     # --- Step 0: List all notebooks ---
     from remarkable_mcp.api import get_rmapi
@@ -561,11 +569,18 @@ def main():
     if skipped_count > 0:
         log(f"Skipped {skipped_count} non-native documents (PDFs/EPUBs).")
 
-    # Find already processed notebooks (from processed_notebooks.json)
-    processed = load_processed_log()
+    # --- Logic Update: Check each destination independently ---
 
-    # Find new or updated notebooks (tracking by ID and Hash/Version)
-    new_notebooks = []
+    # Map of ID -> List of Destinations that need an update
+    # e.g. "uuid123": [ObsidianDestination(...), AppleNotesDestination(...)]
+    needs_update = {}
+
+    # Load states for all active destinations
+    dest_states = {}
+    for dest in ACTIVE_DESTINATIONS:
+        dest_name = type(dest).__name__
+        dest_states[dest_name] = load_processed_log(dest_name)
+
     for item in notebooks:
         doc_id = get_val(item, "ID")
 
@@ -577,37 +592,65 @@ def main():
             except (ValueError, TypeError):
                 curr_val = 1
 
-        last_val = processed.get(doc_id, -1)
+        # Check against each ACTIVE destination
+        for dest in ACTIVE_DESTINATIONS:
+            dest_name = type(dest).__name__
+            last_val = dest_states[dest_name].get(doc_id, -1)
 
-        # Check for change:
-        # 1. If we have a hash now, but stored a number (legacy), it's an update
-        # 2. If strings differ (hash change or version mismatch), it's an update
-        if str(last_val) != str(curr_val):
-            new_notebooks.append(item)
+            if str(last_val) != str(curr_val):
+                if doc_id not in needs_update:
+                    needs_update[doc_id] = []
+                needs_update[doc_id].append(dest)
 
-    if not new_notebooks:
-        log("No new or updated notebooks found in reMarkable cloud. Exiting.")
+    # Convert the needs_update map back into a list of notebooks to process
+    notebooks_to_process_candidates = []
+    for item in notebooks:
+        doc_id = get_val(item, "ID")
+        if doc_id in needs_update:
+            notebooks_to_process_candidates.append(item)
+
+    if not notebooks_to_process_candidates:
+        log("No new or updated notebooks found for any active destination. Exiting.")
         sys.exit(0)
+
     # Limit number of notebooks to process per run
     limit = args.limit if args.limit > 0 else max_notebooks_per_run
     if limit > 0:
-        new_notebooks = new_notebooks[:limit]
-    # If --notebook is specified, process only that one; else process all new (up to limit)
+        notebooks_to_process_candidates = notebooks_to_process_candidates[:limit]
+
+    # If --notebook is specified, filter for that one
     if args.notebook:
-        notebook = args.notebook
-        log(f"Processing notebook: {notebook}")
-        # Filter logic slightly complex due to VissibleName
+        target_name = args.notebook
+        log(f"Processing notebook: {target_name}")
         notebooks_to_process = []
-        for item in new_notebooks:
+        for item in notebooks_to_process_candidates:
             name = get_val(item, "VissibleName") or get_val(item, "VisibleName")
-            if name == notebook:
+            if name == target_name:
                 notebooks_to_process.append(item)
 
+        # Optimization: If the user forced --notebook, but we think it's up to date,
+        # we should probably force it anyway (Assume user knows best).
+        # But for now, let's respect the state logic unless we want a --force flag.
         if not notebooks_to_process:
-            log(f"Notebook {notebook} not found or already processed. Exiting.")
-            sys.exit(1)
+            # Check if it exists at all
+            exists = False
+            for item in notebooks:
+                n = get_val(item, "VissibleName") or get_val(item, "VisibleName")
+                if n == target_name:
+                    exists = True
+                    # It exists but is considered processed. Let's force it for the 'single notebook' use case.
+                    log(f"Notebook {target_name} is marked as up-to-date, but forcing due to --notebook flag.")
+                    notebooks_to_process.append(item)
+                    # Force all destinations for this single forced run
+                    doc_id = get_val(item, "ID")
+                    needs_update[doc_id] = ACTIVE_DESTINATIONS
+                    break
+            
+            if not exists:
+                log(f"Notebook {target_name} not found in library. Exiting.")
+                sys.exit(1)
     else:
-        notebooks_to_process = new_notebooks
+        notebooks_to_process = notebooks_to_process_candidates
 
     for nb_item in notebooks_to_process:
         notebook = get_val(nb_item, "VissibleName") or get_val(nb_item, "VisibleName")
@@ -773,24 +816,35 @@ def main():
                 if parts:
                     top_level_subfolder = sanitize_filename(parts[0])
 
-            if ACTIVE_DESTINATIONS:
+            # Destinations that specifically request this notebook
+            targets = needs_update.get(notebook_id, [])
+            
+            # Fallback: if 'needs_update' is empty (forced run), target all active
+            if not targets and ACTIVE_DESTINATIONS:
+                 targets = ACTIVE_DESTINATIONS
+
+            if targets:
                 all_success = True
-                for dest in ACTIVE_DESTINATIONS:
-                    log(f"Publishing to {type(dest).__name__}...")
+                for dest in targets:
+                    dest_name = type(dest).__name__
+                    log(f"Publishing to {dest_name}...")
                     dest_success = dest.publish(
                         notebook_name=display_title,
                         text_content=clean_text,
                         image_paths=imgs,
                         sub_folder=top_level_subfolder,
                     )
-                    if not dest_success:
+                    if dest_success:
+                        # Update state for THIS destination immediately
+                        add_to_processed_log(dest_name, notebook_id, notebook_version)
+                    else:
                         all_success = False
-                        log(f"⚠️ Failed to publish to {type(dest).__name__}")
+                        log(f"⚠️ Failed to publish to {dest_name}")
 
                 success = all_success
             else:
-                log("No destinations configured.")
-                success = False
+                log("No destinations need update for this notebook (or none configured).")
+                success = True # Marked as success because we did what was asked (nothing)
 
         except Exception as e:
             log(f"Failed publishing note: {e}")
@@ -798,12 +852,12 @@ def main():
 
             log(traceback.format_exc())
 
-        # After successful processing, add to processed log
+        # Legacy log update (kept to avoid breakage if referenced elsewhere, but logically handled above)
+        # We don't really need a 'global' success anymore, as per-dest success is what matters.
         if success:
-            add_to_processed_log(notebook_id, notebook_version)
-            log(f"Notebook {notebook} processing complete.")
+             log(f"Notebook {notebook} processing complete.")
         else:
-            log(f"Notebook {notebook} processing FAILED. Not marking as complete.")
+             log(f"Notebook {notebook} processing FAILED.")
 
     log("Pipeline finished.")
 

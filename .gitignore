@@ -85,6 +85,8 @@ remarkable_pngs_white/
 remarkable_pngs_for_vision/
 remarkable_pdfs/
 processed_notebooks.json
+processed_notebooks_AppleNotesDestination.json
+processed_notebooks_ObsidianDestination.json
 
 # Configuration (Secrets)
 config.yml
