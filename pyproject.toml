@@ -20,7 +20,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.0.0",
     "rmscene>=0.6.0",
     "pytesseract>=0.3.10",
     "Pillow>=10.0.0",
@@ -46,9 +45,6 @@ dev = [
 ocr = [
     "google-cloud-vision>=3.0.0",
 ]
-
-[project.scripts]
-remarkable-mcp = "remarkable_mcp.cli:main"
 
 [build-system]
 requires = ["hatchling"]

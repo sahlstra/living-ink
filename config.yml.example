@@ -30,8 +30,21 @@ sync:
   # Default: 1
   max_notebooks_per_run: 5
 
-# 5. Apple Notes Configuration (Optional)
+# 5. Destinations (Toggle as needed)
+# You can enable one or both destinations.
+
 apple_notes:
+  enabled: true
   # The folder in Apple Notes where new notes will be created.
-  # Default: "Living Ink"
   folder_name: "Living Ink"
+
+obsidian:
+  enabled: false
+  # Absolute path to your Obsidian Vault root
+  # Example: "/Users/username/Documents/MyVault"
+  vault_path: ""
+
+  # OR for Obsidian:
+  # type: "obsidian"
+  # vault_path: "/Users/yourname/Documents/Obsidian Vault"
+

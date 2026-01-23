@@ -87,6 +87,7 @@ remarkable_pdfs/
 processed_notebooks.json
 
 # Configuration (Secrets)
+config.yml
 config/config.yml
 config/google_creds.json
 
@@ -95,3 +96,4 @@ LivingInkInstaller.pkg
 living-ink-component.pkg
 packaging/payload/
 packaging/resources/
+*.code-workspace
