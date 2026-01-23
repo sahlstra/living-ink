@@ -44,11 +44,11 @@ def _openai_chat(prompt: str) -> str:
         "messages": [
             {
                 "role": "system",
-                "content": "You clean OCR text with minimal rewriting. Preserve wording.",
+                "content": "You are an expert editor for handwritten notes. Your goal is to restore the author's original intent by fixing OCR misinterpretations while preserving their voice.",
             },
             {"role": "user", "content": prompt},
         ],
-        "temperature": 0.2,
+        "temperature": 0.3,
     }
 
     data = json.dumps(payload).encode("utf-8")
