@@ -10,6 +10,7 @@ import zipfile
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import fitz  # PyMuPDF
 
 # reMarkable tablet screen dimensions (in pixels) - used as fallback
 REMARKABLE_WIDTH = 1404
@@ -372,6 +373,7 @@ def render_rm_file_to_png(
         # Convert .rm to SVG using rmc (Direct library call to avoid subprocess issues in frozen app)
         try:
             from rmc.exporters.svg import rm_to_svg
+
             rm_to_svg(str(rm_file_path), str(tmp_svg_path))
         except Exception as e:
             # Fallback for debugging provided the library call failed
@@ -394,30 +396,37 @@ def render_rm_file_to_png(
             output_width = REMARKABLE_WIDTH
             output_height = REMARKABLE_HEIGHT
 
-        # Convert SVG to PNG
+        # Convert SVG to PNG using PyMuPDF (fitz) to avoid system dependencies like cairo
         try:
-            import cairosvg
-            from PIL import Image as PILImage
-
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_raw:
-                tmp_raw_path = Path(tmp_raw.name)
-
-            # Use cairosvg with background_color if specified
-            cairosvg.svg2png(
-                url=str(tmp_svg_path),
-                write_to=str(tmp_raw_path),
-                output_width=output_width,
-                output_height=output_height,
-                background_color=background_color,
-            )
-
+            # Load the SVG into a PDF/Document object
+            doc = fitz.open(tmp_svg_path)
+            page = doc[0] # SVGs are single page
+            
+            # Determine Scaling
+            # We want the output to match output_width/height
+            # Rect is usually (0, 0, w, h)
+            rect = page.rect
+            zoom_x = output_width / rect.width if rect.width > 0 else 1.0
+            zoom_y = output_height / rect.height if rect.height > 0 else 1.0
+            
+            # Trust the calculated matrix
+            mat = fitz.Matrix(zoom_x, zoom_y)
+            
+            # Render to Pixmap
+            # alpha=True gives RGBA. 
+            pix = page.get_pixmap(matrix=mat, alpha=True)
+            
+            # Save to tmp_png_path
+            pix.save(tmp_png_path)
+            
             # If no background color specified (transparent), return as-is
             if background_color is None:
-                with open(tmp_raw_path, "rb") as f:
+                 with open(tmp_png_path, "rb") as f:
                     return f.read()
 
             # If background color specified, ensure it's applied properly
-            img = PILImage.open(tmp_raw_path)
+            from PIL import Image as PILImage
+            img = PILImage.open(tmp_png_path)
             if img.mode == "RGBA" and background_color:
                 # Parse hex color (supports #RRGGBB and #RRGGBBAA formats)
                 r, g, b, a = _parse_hex_color(background_color)
@@ -431,30 +440,29 @@ def render_rm_file_to_png(
                     # Semi-transparent or transparent background
                     bg = PILImage.new("RGBA", img.size, (r, g, b, a))
                     img = PILImage.alpha_composite(bg, img)
-                # If a == 0 (fully transparent), return as-is
+            
             img.save(tmp_png_path)
 
             with open(tmp_png_path, "rb") as f:
                 return f.read()
 
-        except ImportError:
-            # Fall back to inkscape
-            result = subprocess.run(
-                ["inkscape", str(tmp_svg_path), "--export-filename", str(tmp_png_path)],
-                capture_output=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                return None
+        except Exception as e:
+            print(f"PyMuPDF rendering failed: {e}")
+            # Fall back to inkscape as last resort
+            try:
+                result = subprocess.run(
+                    ["inkscape", str(tmp_svg_path), "--export-filename", str(tmp_png_path)],
+                    capture_output=True,
+                    timeout=30,
+                )
+                if result.returncode != 0:
+                     return None
 
-            with open(tmp_png_path, "rb") as f:
-                return f.read()
+                with open(tmp_png_path, "rb") as f:
+                    return f.read()
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                 return None
 
-    except subprocess.TimeoutExpired:
-        return None
-    except FileNotFoundError:
-        # rmc not installed
-        return None
     except Exception:
         return None
     finally:
